@@ -1,57 +1,89 @@
-class BaseArithmetic:
-    def __init__(self, base=None, values=None):
-        self.base = 10 if base is None else base
-        self.values = [] if values is None else values
-        self.init_dict()
-
-    def naive_add(self, valList):
-        valList = self.cleanList(valList)
-        result = []
-        carry = 0
-
-        for i in range(len(valList[0])):
-            carry = carry // self.base
-            psum = sum([carry] + [self.conDict[(entry[len(valList[0]) - i - 1])] for entry in valList])
-            ires = psum % self.base
-            result.append(self.vertDict[str(ires)])
-
-            if psum >= self.base:
-                carry += psum - ires
-
-        while carry > 0:
-            result.append((carry // self.base) % self.base)
-            carry = carry // self.base
-
-        result = "".join([str(i) for i in reversed(result)])
-        while result[0] == "0":
-            result = result[1:]
-
-        return f"Base {self.base}: " + result
-
-    def multiply(self, valList):
-        valList = self.cleanList(valList)
-        product = [0] * (len(valList[0]) * len(valList))
-
-        for i in range(len(valList[0])):
-            for j in range(len(valList)):
-                temp = self.conDict[valList[j][len(valList[j]) - i - 1]] * (self.base ** i)
-                product = self.naive_add([product, temp])
-
-        return product
-
-    def cleanList(self, valList):
-        maxLength = max(map(lambda x: len(x), valList))
-        cleanBin = [("0" * (maxLength - len(entry)) + entry) for entry in valList]
-        return cleanBin
-
-    def init_dict(self):
-        self.conDict = {f"{chr(55 + i)}": i for i in range(10, 36)}
-        self.vertDict = {f"{i}": chr(55 + i) for i in range(10, 36)}
-        self.conDict.update({f"{i}": i for i in range(10)})
-        self.vertDict.update({f"{i}": i for i in range(10)})
-        self.conDict.update({f"{chr(87 + j)}": j for j in range(10, 36)})
+from functools import cache
 
 
-example = BaseArithmetic(base=36, values=["1A2", "2B3", "4C4"])
-print(example.naive_add(example.values))
-print(example.multiply(["12", "34"]))
+@cache
+def init_dict(base):
+    conDict = {f"{chr(55 + i)}": i for i in range(10, base + 1)}
+    vertDict = {f"{i}": chr(55 + i) for i in range(10, base + 1)}
+    conDict.update({f"{i}": i for i in range(10)})
+    vertDict.update({f"{i}": i for i in range(10)})
+    conDict.update({f"{chr(87 + j)}": j for j in range(10, base + 1)})
+    return conDict, vertDict
+
+
+def cleanList(valList):
+    maxLength = max(map(lambda x: len(x), valList))
+    cleanBin = [
+        ["0"] * (maxLength - len(entry)) + [digit for digit in entry]
+        for entry in valList
+    ]
+    return cleanBin
+
+
+def naive_add(base, valList):
+    conDict, vertDict = init_dict(base)
+    valList = cleanList(valList)
+    result = []
+    carry = 0
+
+    for i in range(len(valList[0])):
+        carry = carry // base
+        psum = sum(
+            [carry]
+            + [conDict[str(entry[len(valList[0]) - i - 1])] for entry in valList]
+        )
+        ires = psum % base
+        result.append(vertDict[str(ires)])
+
+        if psum >= base:
+            carry += psum - ires
+
+    while carry > 0:
+        result.append((carry // base) % base)
+        carry = carry // base
+
+    result = "".join([str(i) for i in reversed(result)])
+    while result[0] == "0":
+        result = result[1:]
+
+    return result
+
+
+def multiply(base, valList):
+    #TODO THIS IS STILL BROKEN. NEED TO REVISIT ALGORITHM.
+    conDict, vertDict = init_dict(base)
+    valList = cleanList(valList)
+    product = [0] * (len(valList[0]) * 2)
+
+    for i, num1 in enumerate(valList):
+        for j, num2 in enumerate(valList):
+            if i != j:
+                temp_product = [0] * (len(num1) + len(num2))
+                carry = 0
+
+                for idx1, digit1 in enumerate(reversed(num1)):
+                    for idx2, digit2 in enumerate(reversed(num2)):
+                        product_ij = conDict[digit1] * conDict[digit2] + carry
+                        carry = product_ij // base
+                        temp_product[idx1 + idx2] += product_ij % base
+
+                for idx in range(len(temp_product)):
+                    if temp_product[idx] >= base:
+                        carry = temp_product[idx] // base
+                        temp_product[idx] %= base
+                        temp_product[idx + 1] += carry
+                print("Temp product:", temp_product)
+                product = naive_add(base, [product, list(reversed(temp_product))])
+                print("Product:", product)
+    while len(product) > 1 and product[-1] == 0:
+        product.pop()
+
+    return "".join([vertDict[str(i)] for i in reversed(product)])
+
+
+if __name__ == "__main__":
+    assert naive_add(36, ["1A2", "2B3", "4C4"]) == "7X9", "Incorrect addition"
+    print("ADDITION PASSED")
+    # print(multiply(36, ["1A2", "2B3", "4C4"]))
+    assert multiply(36, ["1A2", "2B3", "4C4"]) == "CSX37SO", "Incorrect multiplication"
+    # example = multiply(36, ["1A2", "2B3",
